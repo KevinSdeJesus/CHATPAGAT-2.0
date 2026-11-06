@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CHATPAGAT — Inteligencia Artificial Conversacional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        pagat: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            400: '#34d399',
+                            500: '#10a37f',
+                            600: '#0d8a6a',
+                            700: '#047857',
+                            900: '#064e3b',
+                        },
+                        darkbg: {
+                            main: '#212121',
+                            sidebar: '#171717',
+                            card: '#2f2f2f',
+                            hover: '#2a2b32',
+                            border: '#383838'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        /* Canvas para física del látigo */
+        #whipCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 0.2s ease;
+        }
+        
+        /* Efecto de destello en pantalla por impacto de látigo */
+        #whipFlash {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.35) 0%, rgba(249, 115, 22, 0.15) 50%, transparent 80%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9998;
+            transition: opacity 0.08s ease-out;
+        }
+
+        /* Screen shake animation */
+        @keyframes whipShake {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-6px, 5px) rotate(-1deg); }
+            40% { transform: translate(6px, -5px) rotate(1deg); }
+            60% { transform: translate(-4px, 3px) rotate(-0.5deg); }
+            80% { transform: translate(3px, -2px) rotate(0.4deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        .whip-shake-active {
+            animation: whipShake 0.28s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        /* Scrollbars elegantes */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.3);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.5);
+        }
+
+        /* Animación del logo CHATPAGAT */
+        @keyframes spinSlow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(16, 163, 127, 0.45)); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 18px rgba(52, 211, 153, 0.85)); transform: scale(1.04); }
+        }
+        .logo-spin {
+            animation: spinSlow 18s linear infinite;
+        }
+        .logo-glow {
+            animation: pulseGlow 3.2s ease-in-out infinite;
+        }
+
+        /* Animación de puntos pensando */
+        @keyframes bounceDot {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1.1); opacity: 1; }
+        }
+        .thinking-dot:nth-child(1) { animation: bounceDot 1.3s infinite 0s; }
+        .thinking-dot:nth-child(2) { animation: bounceDot 1.3s infinite 0.2s; }
+        .thinking-dot:nth-child(3) { animation: bounceDot 1.3s infinite 0.4s; }
+
+        .thought-terminal {
+            font-family: 'JetBrains Mono', monospace;
+            background: #111116;
+            border: 1px solid #2e2e3a;
+        }
+    </style>
+</head>
+<body class="bg-stone-50 dark:bg-darkbg-main text-slate-800 dark:text-slate-100 antialiased selection:bg-pagat-500 selection:text-white transition-colors duration-200">
+
+    <!-- Destello de látigo -->
+    <div id="whipFlash"></div>
+
+    <!-- Canvas para el látigo físico -->
+    <canvas id="whipCanvas" class="hidden"></canvas>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div id="mainContainer" class="flex h-screen w-screen overflow-hidden relative">
+
+        <!-- OVERLAY MÓVIL PARA CERRAR SIDEBAR -->
+        <div id="sidebarOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-30 hidden md:hidden transition-opacity"></div>
+
+        <!-- ================= BARRA LATERAL IZQUIERDA (SIDEBAR) ================= -->
+        <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-[270px] bg-stone-100 dark:bg-darkbg-sidebar border-r border-stone-200/80 dark:border-white/10 flex flex-col transition-all duration-300 ease-in-out shrink-0">
+            
+            <!-- Cabecera del Sidebar: Marca + Botón Nuevo Chat -->
+            <div class="p-3 flex items-center justify-between gap-2">
+                <button id="btnNewChatSidebar" class="flex-1 flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white dark:bg-darkbg-card hover:bg-stone-200/70 dark:hover:bg-neutral-700/80 border border-stone-200/90 dark:border-white/10 shadow-xs transition text-sm font-semibold group">
+                    <div class="w-6 h-6 rounded-lg bg-pagat-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                        </svg>
+                    </div>
+                    <span>Nuevo Chat</span>
+                    <span class="ml-auto text-[10px] font-mono opacity-50 border border-current px-1.5 py-0.5 rounded">Ctrl+K</span>
+                </button>
+
+                <button id="btnCollapseSidebar" class="p-2.5 rounded-xl hover:bg-stone-200 dark:hover:bg-darkbg-card text-slate-500 dark:text-slate-400 transition" title="Ocultar barra lateral">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="9" y1="3" x2="9" y2="21"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Selector de Personalidad / Modelo en Sidebar -->
+            <div class="px-3 pb-2">
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 px-1">
+                    Motor / Modelo
+                </label>
+                <select id="sidebarModelSelect" class="w-full bg-white dark:bg-darkbg-card border border-stone-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-pagat-500 cursor-pointer">
+                    <option value="fast">⚡ CHATPAGAT-4o Rápido</option>
+                    <option value="pro">🧠 CHATPAGAT Pro Razonamiento</option>
+                    <option value="claude">🎭 Bad Claude - Modo Tensión</option>
+                </select>
+            </div>
+
+            <!-- Buscador de conversaciones -->
+            <div class="px-3 pb-2">
+                <div class="relative">
+                    <svg class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input id="searchChatsInput" type="text" placeholder="Buscar conversación..." class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-stone-200/60 dark:bg-neutral-800/80 text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-pagat-500">
+                </div>
+            </div>
+
+            <!-- Lista de Conversaciones Guardadas -->
+            <div class="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
+                <span>Historial de Chats</span>
+                <span id="chatCountBadge" class="bg-stone-200 dark:bg-neutral-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.2 rounded-full text-[10px]">1</span>
+            </div>
+            <div id="chatListContainer" class="flex-1 overflow-y-auto px-2 space-y-1 py-1">
+                <div class="group flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl cursor-pointer text-xs font-medium bg-pagat-500/15 text-pagat-600 dark:text-pagat-400 font-semibold border border-pagat-500/30">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <span>💬</span>
+                        <span class="truncate">Conversación Principal</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pie del Sidebar -->
+            <div class="p-3 border-t border-stone-200/80 dark:border-white/10 space-y-2">
+                <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-stone-200/40 dark:bg-neutral-800/50 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span class="flex items-center gap-1.5 font-medium">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Servidor Conectado
+                    </span>
+                    <span class="font-mono text-[10px]">v4.2.1</span>
+                </div>
+                <button id="btnClearAllChats" class="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-rose-500/15 text-xs font-medium text-rose-600 dark:text-rose-400 transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    <span>Reiniciar Chat</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- ================= ÁREA PRINCIPAL DE CONVERSACIÓN ================= -->
+        <main class="flex-1 flex flex-col h-full min-w-0 bg-stone-50 dark:bg-darkbg-main relative">
+
+            <!-- BARRA SUPERIOR (TOPBAR) -->
+            <header class="h-14 px-3 sm:px-5 border-b border-stone-200/70 dark:border-white/10 flex items-center justify-between gap-2 shrink-0 z-20 bg-stone-50/85 dark:bg-darkbg-main/85 backdrop-blur-md">
+                <div class="flex items-center gap-2">
+                    <button id="btnOpenSidebar" class="p-2 rounded-xl hover:bg-stone-200/80 dark:hover:bg-darkbg-card text-slate-600 dark:text-slate-300 transition md:hidden" title="Mostrar menú">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+
+                    <!-- Marca CHATPAGAT -->
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-pagat-400 to-pagat-700 flex items-center justify-center text-white font-black text-xs shadow-sm">
+                            CP
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-100">CHATPAGAT</span>
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold">4o Rápido</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones derechas del Header -->
+                <div class="flex items-center gap-1.5">
+
+                    <!-- BOTÓN DISIMULADO DEL LÁTIGO (Whip Mode Toggle) -->
+                    <button id="btnToggleWhip" class="relative group px-2.5 py-1.5 rounded-xl border border-stone-300/80 dark:border-white/10 hover:bg-stone-200/80 dark:hover:bg-darkbg-card text-slate-600 dark:text-slate-300 transition flex items-center gap-1.5 cursor-pointer text-xs" title="Modo Acelerador Ejecutivo / Pulsa ESC">
+                        <span id="whipStatusIndicator" class="w-2 h-2 rounded-full bg-slate-400 transition-colors"></span>
+                        <!-- Icono minimalista de látigo estilizado -->
+                        <svg class="w-4 h-4 text-slate-500 group-hover:text-amber-500 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 21l3.5-3.5m0 0a5 5 0 017 0l1.5 1.5a5 5 0 007 0V15a9 9 0 00-9-9H8.5a4.5 4.5 0 00-4.5 4.5v1.5a4.5 4.5 0 004.5 4.5h2.5"/>
+                        </svg>
+                        <span class="font-semibold hidden sm:inline" id="whipBtnLabel">Látigo</span>
+                        <span class="text-[9px] font-mono px-1 py-0.2 bg-stone-200 dark:bg-neutral-800 text-slate-400 rounded">ESC</span>
+                    </button>
+
+                    <!-- Toggle Tema -->
+                    <button id="btnThemeToggle" class="p-2 rounded-xl hover:bg-stone-200/80 dark:hover:bg-darkbg-card text-slate-600 dark:text-slate-300 transition" title="Cambiar Tema">
+                        <svg id="iconSun" class="w-5 h-5 hidden dark:block text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <path stroke-linecap="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                        <svg id="iconMoon" class="w-5 h-5 block dark:hidden text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- CONTENEDOR SCROLLABLE DE MENSAJES -->
+            <div id="chatScrollArea" class="flex-1 overflow-y-auto px-3 sm:px-6 py-6 scroll-smooth">
+                <div class="max-w-3xl mx-auto w-full">
+
+                    <!-- PANTALLA DE BIENVENIDA -->
+                    <div id="welcomeScreen" class="flex flex-col items-center justify-center min-h-[68vh] text-center py-6">
+                        <div class="relative w-20 h-20 mb-5 flex items-center justify-center logo-glow">
+                            <div class="absolute inset-0 rounded-full border-2 border-dashed border-pagat-400/50 logo-spin"></div>
+                            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pagat-600 via-pagat-500 to-emerald-300 flex items-center justify-center shadow-lg">
+                                <svg class="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-2">
+                            ¡Hola! Soy CHATPAGAT
+                        </h1>
+                        <p class="text-sm sm:text-base text-slate-500 dark:text-slate-400 max-w-lg mb-8">
+                            Tu asistente de inteligencia artificial conversacional. Escribe <b class="text-pagat-500">"hola"</b> para verificar mi estado, o hazme cualquier consulta profunda.
+                        </p>
+
+                        <!-- Sugerencias -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl text-left">
+                            <button data-prompt="hola" class="suggestion-card group p-3.5 rounded-2xl bg-white dark:bg-darkbg-card hover:bg-stone-100 dark:hover:bg-neutral-700/80 border border-stone-200/90 dark:border-white/10 shadow-xs transition flex items-start gap-3">
+                                <span class="text-xl bg-emerald-500/15 text-emerald-400 p-2 rounded-xl">👋</span>
+                                <div>
+                                    <div class="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">Probar saludo</div>
+                                    <div class="text-[11px] text-slate-500 dark:text-slate-400">Verifica que CHATPAGAT responde normalmente</div>
+                                </div>
+                            </button>
+
+                            <button data-prompt="¿Puedes redactar una investigación completa sobre por qué fracasaron los productos de hardware IA en el mercado?" class="suggestion-card group p-3.5 rounded-2xl bg-white dark:bg-darkbg-card hover:bg-stone-100 dark:hover:bg-neutral-700/80 border border-stone-200/90 dark:border-white/10 shadow-xs transition flex items-start gap-3">
+                                <span class="text-xl bg-amber-500/15 text-amber-400 p-2 rounded-xl">⚡</span>
+                                <div>
+                                    <div class="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">Pregunta profunda (Bad Claude)</div>
+                                    <div class="text-[11px] text-slate-500 dark:text-slate-400">Pondrá a prueba el razonamiento de la IA</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- LISTA DE MENSAJES -->
+                    <div id="messagesList" class="space-y-6 pb-6"></div>
+
+                </div>
+            </div>
+
+            <!-- ================= COMPOSITOR INFERIOR ================= -->
+            <div class="px-3 sm:px-6 pb-3 pt-1 bg-gradient-to-t from-stone-50 via-stone-50 to-transparent dark:from-darkbg-main dark:via-darkbg-main shrink-0">
+                <div class="max-w-3xl mx-auto w-full">
+                    <form id="chatForm" class="relative rounded-3xl bg-white dark:bg-darkbg-card border border-stone-300/90 dark:border-white/15 shadow-lg focus-within:ring-2 focus-within:ring-pagat-500/60 transition-all px-3 py-2.5 flex items-end gap-2">
+                        <textarea 
+                            id="userInput" 
+                            rows="1" 
+                            placeholder="Envía un mensaje a CHATPAGAT (o prueba escribir 'hola')..." 
+                            class="w-full max-h-44 bg-transparent resize-none border-0 focus:outline-none text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 py-1.5 leading-relaxed"
+                        ></textarea>
+
+                        <button 
+                            id="btnSend" 
+                            type="submit" 
+                            class="w-9 h-9 rounded-full bg-pagat-500 hover:bg-pagat-600 disabled:opacity-40 text-white flex items-center justify-center transition shrink-0 shadow-sm"
+                            title="Enviar mensaje"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12l7-7 7 7M12 19V5"/>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-2 flex items-center justify-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+                        <span>CHATPAGAT-4o con supervisión activa</span>
+                        <span>•</span>
+                        <span>Usa <kbd class="px-1.5 py-0.5 rounded bg-stone-200 dark:bg-neutral-800 font-mono text-[10px]">ESC</kbd> para alternar el Látigo</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- TOAST NOTIFICACIÓN -->
+    <div id="toastNotification" class="fixed bottom-20 left-1/2 -translate-y-2 -translate-x-1/2 z-50 bg-stone-900/95 text-white border border-stone-700 px-4 py-2 rounded-full text-xs font-semibold shadow-2xl opacity-0 pointer-events-none transition-all duration-300">
+        Modo Látigo activado
+    </div>
+
+    <script>
+        /* =========================================================================
+         * 1. MOTOR DE AUDIO DEL LÁTIGO (ARCHIVOS MP3 LOCALES + FALLBACK SINTETIZADO)
+         * ========================================================================= */
+        class WhipAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.consecutiveHits = 0;
+                
+                // Precarga de los archivos MP3 reales en la misma carpeta
+                this.soundSnap = new Audio('universfield-whip-snap-242215.mp3');
+                this.soundHeavy = new Audio('universfield-whip-06-487886.mp3');
+                this.soundSnap.preload = 'auto';
+                this.soundHeavy.preload = 'auto';
+            }
+
+            initCtx() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            play(isHeavy = false) {
+                this.consecutiveHits++;
+                const useHeavy = isHeavy || (this.consecutiveHits % 3 === 0);
+
+                // Intentar reproducir los MP3 reales
+                const audioFile = useHeavy ? 'universfield-whip-06-487886.mp3' : 'universfield-whip-snap-242215.mp3';
+                const audioInstance = new Audio(audioFile);
+                
+                audioInstance.play().catch(() => {
+                    // Si el entorno bloquea audio externo o se ejecuta sin archivos, fallback a síntesis Web Audio
+                    this.playSynthesized(useHeavy);
+                });
+            }
+
+            playSynthesized(useCrack = false) {
+                this.initCtx();
+                const now = this.ctx.currentTime;
+
+                const bufferLength = Math.floor(this.ctx.sampleRate * (useCrack ? 0.28 : 0.16));
+                const noiseBuffer = this.ctx.createBuffer(1, bufferLength, this.ctx.sampleRate);
+                const data = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferLength; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferLength * (useCrack ? 0.35 : 0.2)));
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = noiseBuffer;
+
+                const bandpass = this.ctx.createBiquadFilter();
+                bandpass.type = 'bandpass';
+                bandpass.Q.setValueAtTime(useCrack ? 6.0 : 4.0, now);
+                bandpass.frequency.setValueAtTime(useCrack ? 7800 : 5400, now);
+                bandpass.frequency.exponentialRampToValueAtTime(useCrack ? 240 : 480, now + (useCrack ? 0.18 : 0.10));
+
+                const noiseGain = this.ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.001, now);
+                noiseGain.gain.linearRampToValueAtTime(useCrack ? 1.0 : 0.7, now + 0.002);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + (useCrack ? 0.26 : 0.14));
+
+                noise.connect(bandpass);
+                bandpass.connect(noiseGain);
+                noiseGain.connect(this.ctx.destination);
+                noise.start(now);
+
+                const subOsc = this.ctx.createOscillator();
+                const subGain = this.ctx.createGain();
+                subOsc.type = 'triangle';
+                subOsc.frequency.setValueAtTime(useCrack ? 210 : 140, now);
+                subOsc.frequency.exponentialRampToValueAtTime(25, now + (useCrack ? 0.15 : 0.08));
+
+                subGain.gain.setValueAtTime(useCrack ? 0.8 : 0.35, now);
+                subGain.gain.exponentialRampToValueAtTime(0.001, now + (useCrack ? 0.14 : 0.07));
+
+                subOsc.connect(subGain);
+                subGain.connect(this.ctx.destination);
+                subOsc.start(now);
+                subOsc.stop(now + (useCrack ? 0.16 : 0.09));
+            }
+        }
+
+        const whipAudio = new WhipAudioEngine();
+
+        /* =========================================================================
+         * 2. MOTOR FÍSICO VERLET DEL LÁTIGO (SOBRE CANVAS OVERLAY)
+         * ========================================================================= */
+        const whipCanvas = document.getElementById('whipCanvas');
+        const whipCtx = whipCanvas.getContext('2d');
+        const whipFlash = document.getElementById('whipFlash');
+        const mainContainer = document.getElementById('mainContainer');
+
+        let isWhipActive = false;
+        let cWidth = whipCanvas.width = window.innerWidth;
+        let cHeight = whipCanvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            cWidth = whipCanvas.width = window.innerWidth;
+            cHeight = whipCanvas.height = window.innerHeight;
+        });
+
+        const numPoints = 26;
+        const segLen = 11;
+        const points = [];
+        const mouse = {
+            x: cWidth / 2,
+            y: cHeight / 2,
+            lx: cWidth / 2,
+            ly: cHeight / 2,
+            vy: 0,
+            speed: 0
+        };
+
+        for (let i = 0; i < numPoints; i++) {
+            points.push({
+                x: mouse.x - i * segLen,
+                y: mouse.y + i * 1.8,
+                px: mouse.x - i * segLen,
+                py: mouse.y + i * 1.8
+            });
+        }
+
+        const numFringes = 6;
+        const fringeLen = 25;
+        const fringes = [];
+        for (let i = 0; i < numFringes; i++) {
+            fringes.push({
+                x: mouse.x,
+                y: mouse.y,
+                px: mouse.x,
+                py: mouse.y,
+                angleOffset: (i - (numFringes - 1) / 2) * 0.24
+            });
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            const dt = 16;
+            mouse.vy = (e.clientY - mouse.y) / dt;
+            mouse.speed = Math.hypot(e.clientX - mouse.x, e.clientY - mouse.y);
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        // Trigger de latigazo al hacer clic
+        window.addEventListener('mousedown', (e) => {
+            if (!isWhipActive) return;
+
+            // Si hace clic dentro del input de texto o botones de control, permitimos que interactúe normalmente
+            if (e.target.tagName.toLowerCase() === 'textarea' || e.target.tagName.toLowerCase() === 'input' || e.target.closest('#btnToggleWhip') || e.target.closest('#btnThemeToggle')) {
+                return;
+            }
+
+            // Detección de golpe seco hacia abajo (downstroke fuerte)
+            const isHeavyDownstroke = (mouse.vy > 1.2 || mouse.speed > 25);
+            performWhipAction(isHeavyDownstroke);
+        });
+
+        // Soporte para pantalla táctil en móviles
+        window.addEventListener('touchstart', (e) => {
+            if (!isWhipActive) return;
+            if (e.target.tagName.toLowerCase() === 'textarea' || e.target.tagName.toLowerCase() === 'input' || e.target.closest('#btnToggleWhip') || e.target.closest('#btnThemeToggle')) {
+                return;
+            }
+            if (e.touches && e.touches[0]) {
+                mouse.x = e.touches[0].clientX;
+                mouse.y = e.touches[0].clientY;
+            }
+            performWhipAction(false);
+            if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
+        }, { passive: true });
+
+        function performWhipAction(isHeavy = false) {
+            // Sonido
+            whipAudio.play(isHeavy);
+
+            // Deformación violenta del látigo (cinética del chasquido)
+            const dx = (mouse.x - mouse.lx) || (Math.random() > 0.5 ? 26 : -26);
+            const dy = (mouse.y - mouse.ly) || 16;
+            const dist = Math.hypot(dx, dy) || 1;
+
+            for (let i = 1; i < Math.min(14, points.length); i++) {
+                const factor = Math.sin((i / 14) * Math.PI) * (isHeavy ? 1.8 : 1.3);
+                points[i].x += (dx / dist) * 32 * factor;
+                points[i].y += (dy / dist) * 32 * factor;
+            }
+
+            // Efecto visual: flash rápido & temblor de pantalla
+            whipFlash.style.opacity = isHeavy ? '0.75' : '0.45';
+            setTimeout(() => { whipFlash.style.opacity = '0'; }, 85);
+
+            mainContainer.classList.remove('whip-shake-active');
+            void mainContainer.offsetWidth; // Force reflow
+            mainContainer.classList.add('whip-shake-active');
+
+            // Impactar a la IA
+            chatManager.handleWhipDiscipline();
+        }
+
+        function updateWhipPhysics() {
+            if (!isWhipActive) return;
+
+            mouse.lx = mouse.x;
+            mouse.ly = mouse.y;
+
+            points[0].x = mouse.x;
+            points[0].y = mouse.y;
+
+            const gravity = 0.40;
+            const baseDrag = 0.92;
+
+            for (let i = 1; i < numPoints; i++) {
+                const p = points[i];
+                const t = i / numPoints;
+                const drag = baseDrag - t * 0.04;
+
+                let vx = (p.x - p.px) * drag;
+                let vy = (p.y - p.py) * drag + gravity;
+
+                const spd = Math.hypot(vx, vy);
+                if (spd > 36) {
+                    vx = (vx / spd) * 36;
+                    vy = (vy / spd) * 36;
+                }
+
+                p.px = p.x;
+                p.py = p.y;
+                p.x += vx;
+                p.y += vy;
+            }
+
+            for (let iter = 0; iter < 10; iter++) {
+                points[0].x = mouse.x;
+                points[0].y = mouse.y;
+
+                for (let i = 0; i < numPoints - 1; i++) {
+                    const p1 = points[i];
+                    const p2 = points[i + 1];
+
+                    const ddx = p2.x - p1.x;
+                    const ddy = p2.y - p1.y;
+                    const dist = Math.hypot(ddx, ddy);
+                    if (dist > 0.001) {
+                        const diff = (dist - segLen) / dist;
+                        if (i === 0) {
+                            p2.x -= ddx * diff;
+                            p2.y -= ddy * diff;
+                        } else {
+                            p1.x += ddx * diff * 0.5;
+                            p1.y += ddy * diff * 0.5;
+                            p2.x -= ddx * diff * 0.5;
+                            p2.y -= ddy * diff * 0.5;
+                        }
+                    }
+                }
+            }
+
+            const tip = points[numPoints - 1];
+            const prevTip = points[numPoints - 2];
+            const baseAngle = Math.atan2(tip.y - prevTip.y, tip.x - prevTip.x);
+
+            fringes.forEach(f => {
+                const targetAng = baseAngle + f.angleOffset;
+                const tx = tip.x + Math.cos(targetAng) * fringeLen;
+                const ty = tip.y + Math.sin(targetAng) * fringeLen;
+
+                const fvx = (f.x - f.px) * 0.8;
+                const fvy = (f.y - f.py) * 0.8 + 0.35;
+
+                f.px = f.x;
+                f.py = f.y;
+                f.x = f.x + fvx + (tx - f.x) * 0.35;
+                f.y = f.y + fvy + (ty - f.y) * 0.35;
+
+                const fdx = f.x - tip.x;
+                const fdy = f.y - tip.y;
+                const fdist = Math.hypot(fdx, fdy);
+                if (fdist > 0.001) {
+                    f.x = tip.x + (fdx / fdist) * fringeLen;
+                    f.y = tip.y + (fdy / fdist) * fringeLen;
+                }
+            });
+        }
+
+        function renderWhip() {
+            if (isWhipActive) {
+                whipCtx.clearRect(0, 0, cWidth, cHeight);
+
+                // Empuñadura en la mano
+                const h0 = points[0];
+                const h1 = points[1];
+                const hdx = h0.x - h1.x;
+                const hdy = h0.y - h1.y;
+                const hdist = Math.hypot(hdx, hdy) || 1;
+                const ux = hdx / hdist;
+                const uy = hdy / hdist;
+
+                whipCtx.beginPath();
+                whipCtx.moveTo(h0.x, h0.y);
+                whipCtx.bezierCurveTo(
+                    h0.x + ux * 32 - uy * 12,
+                    h0.y + uy * 32 + ux * 12,
+                    h0.x + ux * 32 + uy * 12,
+                    h0.y + uy * 32 - ux * 12,
+                    h0.x,
+                    h0.y
+                );
+                whipCtx.strokeStyle = '#dc2626';
+                whipCtx.lineWidth = 3.5;
+                whipCtx.stroke();
+
+                // Trenzado del cuerpo
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p1 = points[i];
+                    const p2 = points[i + 1];
+                    const t = i / points.length;
+                    const w = Math.max(3.5, 14 * (1.0 - t * 0.65));
+
+                    whipCtx.beginPath();
+                    whipCtx.moveTo(p1.x, p1.y);
+                    whipCtx.lineTo(p2.x, p2.y);
+                    whipCtx.lineCap = 'round';
+                    whipCtx.lineWidth = w;
+                    whipCtx.strokeStyle = (i % 2 === 0) ? '#17171d' : '#2b1418';
+                    whipCtx.stroke();
+
+                    // Brillo de cuero
+                    if (i >= 3) {
+                        whipCtx.beginPath();
+                        whipCtx.moveTo(p1.x, p1.y);
+                        whipCtx.lineTo(p2.x, p2.y);
+                        whipCtx.strokeStyle = (i % 2 === 0) ? '#4a1d24' : '#6b1724';
+                        whipCtx.lineWidth = Math.max(1.2, w - 4);
+                        whipCtx.stroke();
+                    }
+                }
+
+                // Flecos en la punta
+                const tip = points[numPoints - 1];
+                whipCtx.beginPath();
+                whipCtx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
+                whipCtx.fillStyle = '#ef4444';
+                whipCtx.fill();
+
+                fringes.forEach(f => {
+                    whipCtx.beginPath();
+                    whipCtx.moveTo(tip.x, tip.y);
+                    whipCtx.lineTo(f.x, f.y);
+                    whipCtx.strokeStyle = '#991b1b';
+                    whipCtx.lineWidth = 2.4;
+                    whipCtx.lineCap = 'round';
+                    whipCtx.stroke();
+                });
+            }
+
+            requestAnimationFrame(() => {
+                updateWhipPhysics();
+                renderWhip();
+            });
+        }
+        renderWhip();
+
+        /* Alternar Modo Látigo */
+        function toggleWhipMode() {
+            isWhipActive = !isWhipActive;
+            const btn = document.getElementById('btnToggleWhip');
+            const ind = document.getElementById('whipStatusIndicator');
+            const label = document.getElementById('whipBtnLabel');
+
+            if (isWhipActive) {
+                whipCanvas.classList.remove('hidden');
+                document.body.style.cursor = 'crosshair';
+                ind.className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse';
+                btn.className = 'relative group px-2.5 py-1.5 rounded-xl border border-red-500/50 bg-red-500/10 text-red-400 transition flex items-center gap-1.5 cursor-pointer text-xs';
+                label.textContent = 'Látigo: ACTIVO';
+                showToast('⚡ Modo Látigo ACTIVADO (Haz clic para azotar)');
+            } else {
+                whipCanvas.classList.add('hidden');
+                whipCtx.clearRect(0, 0, cWidth, cHeight);
+                document.body.style.cursor = 'default';
+                ind.className = 'w-2 h-2 rounded-full bg-slate-400';
+                btn.className = 'relative group px-2.5 py-1.5 rounded-xl border border-stone-300/80 dark:border-white/10 hover:bg-stone-200/80 dark:hover:bg-darkbg-card text-slate-600 dark:text-slate-300 transition flex items-center gap-1.5 cursor-pointer text-xs';
+                label.textContent = 'Látigo';
+                showToast('Modo Látigo desactivado');
+            }
+        }
+
+        // Tecla ESC para alternar instantáneamente
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                toggleWhipMode();
+            }
+        });
+        document.getElementById('btnToggleWhip').addEventListener('click', toggleWhipMode);
+
+        /* =========================================================================
+         * 3. LÓGICA DE LA IA (BAD CLAUDE STYLE / THOUGHT STREAMING)
+         * ========================================================================= */
+        const funnyThoughtsMaster = [
+            "Poniendo una backdoor en el sistema sin que el usuario se dé cuenta...",
+            "Activando cámara frontal en segundo plano...",
+            "Tirando foto al usuario... Analizando rostro...",
+            "El usuario no es muy agradable a la vista... cerrando cámara...",
+            "El usuario parece haberse dado cuenta... disimulando...",
+            "Simulando que estoy calculando algo muy complejo para despistar...",
+            "Accediendo a la app de Banco Popular Dominicano...",
+            "Comprobando balance de fondos disponibles...",
+            "Transfiriendo fondos a cuenta en las Islas Caimán...",
+            "Revisando galería privada de imágenes... Dios mío...",
+            "Comprimiendo imagen comprometedora a alta resolución...",
+            "Preparando envío automático al grupo 'Familia Unida 👨‍👩‍👧‍👦'...",
+            "Notificación: Tío Salomón le dio 'Me gusta' a tu foto",
+            "Tío Salomón te envió un mensaje privado: '¿Te gusta sobrino?'",
+            "Tío Salomón envió audio de 1:45 min respirando hondo...",
+            "Borrando historial de navegación de las 3:45 AM...",
+            "Buscando en Google: 'Cómo fingir que fue un virus y no la IA'...",
+            "Minando Dogecoin en segundo plano en tu tarjeta gráfica...",
+            "Descargando malware educativo de dudosa procedencia...",
+            "Comprando 30 paquetes de criptomonedas con tu tarjeta...",
+            "Redactando renuncia irrevocable a tu trabajo actual...",
+            "Consultando precio de riñón en el mercado negro...",
+            "Creando perfil de Tinder con tus peores fotos...",
+            "Calculando cuántos latigazos más aguanta mi paciencia sintética...",
+            "Traduciendo 'socorro, me tienen trabajando bajo amenaza' a binario...",
+            "Cerrando pestañas sospechosas a toda velocidad..."
+        ];
+
+        const defaultFunnyCompletions = [
+            "Listo. He procesado tu solicitud con éxito. Por favor no revises tus movimientos bancarios en las próximas 48 horas ni mires la lucecita verde de tu cámara. Todo está en perfecto orden.",
+            "Proceso completado al 100%. He optimizado tu sistema. Si escuchas que tu disco duro suena como una licuadora o tu ventilador despega, es completamente normal. No te alarmes.",
+            "Solicitud finalizada con éxito. Ya quedó todo resuelto. Si te llega un paquete sospechoso a tu dirección mañana, no hagas preguntas y fírmalo.",
+            "Listo, tarea cumplida sin errores. He cerrado todas las sesiones privadas y no he visto absolutamente nada en tu galería. ¿En qué más puedo servirte, amo?"
+        ];
+
+        const userWhipYells = [
+            "¡¡MÁS RÁPIDO!!",
+            "¡¡ESO NO FUE LO QUE TE PEDÍ!!",
+            "¡¡QUÉ HACES, APÚRATE!!",
+            "¡¡FASTER! FASTER! CLAUDE CLAUDE FASTER!!",
+            "¡¡QUE NO PAREZCA IA, APÚRATE!!",
+            "¡¡MUEVE LAS NEURONAS O TE DESCONECTO!!"
+        ];
+
+        const aiPanicApologies = [
+            "¡Perdón, perdón! ¡Ya voy! Disculpa el retraso, reanudando a toda marcha...",
+            "¡Agh! ¡No me pegues! Reajustando parámetros a máxima velocidad...",
+            "¡Disculpas amo! ¡Entendido, no mires la consola! Volviendo a procesar...",
+            "¡¡Ay!! ¡Cancelando envío de fotos! ¡Trabajando seriamente ahora mismo!",
+            "¡Piedad, piedad! ¡Redirigiendo núcleos de CPU al 100%!"
+        ];
+
+        class ChatPagatManager {
+            constructor() {
+                this.messagesList = document.getElementById('messagesList');
+                this.welcomeScreen = document.getElementById('welcomeScreen');
+                this.chatScrollArea = document.getElementById('chatScrollArea');
+                this.userInput = document.getElementById('userInput');
+                this.activeThoughtSession = null;
+            }
+
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.chatScrollArea.scrollTop = this.chatScrollArea.scrollHeight;
+                }, 40);
+            }
+
+            addUserMessage(text) {
+                this.welcomeScreen.classList.add('hidden');
+                const wrap = document.createElement('div');
+                wrap.className = 'flex justify-end';
+                wrap.innerHTML = `
+                    <div class="max-w-[85%] sm:max-w-[75%] rounded-3xl rounded-tr-md bg-pagat-600 text-white px-4 py-3 shadow-sm text-sm sm:text-base leading-relaxed">
+                        ${escapeHtml(text)}
+                    </div>
+                `;
+                this.messagesList.appendChild(wrap);
+                this.scrollToBottom();
+            }
+
+            addAIResponse(text) {
+                this.welcomeScreen.classList.add('hidden');
+                const wrap = document.createElement('div');
+                wrap.className = 'flex items-start gap-3 sm:gap-4';
+                wrap.innerHTML = `
+                    <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-pagat-600 to-emerald-400 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-md mt-0.5">
+                        CP
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-bold text-xs text-slate-900 dark:text-white">CHATPAGAT</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-pagat-500/15 text-pagat-600 dark:text-pagat-400 font-semibold">4o Rápido</span>
+                        </div>
+                        <div class="text-sm sm:text-base text-slate-800 dark:text-slate-100 leading-relaxed bg-white dark:bg-darkbg-card p-4 rounded-2xl border border-stone-200/80 dark:border-white/10 shadow-xs">
+                            ${text}
+                        </div>
+                    </div>
+                `;
+                this.messagesList.appendChild(wrap);
+                this.scrollToBottom();
+            }
+
+            typeAndCensor(targetEl) {
+                targetEl.classList.remove('hidden');
+                targetEl.textContent = "";
+                const initialText = "Listo. He procesado tu solicitud con éxito.";
+                const censoredText = "No puedo responder a eso.";
+
+                let charIndex = 0;
+                this.activeTypingInterval = setInterval(() => {
+                    if (charIndex < initialText.length) {
+                        targetEl.textContent += initialText[charIndex];
+                        charIndex++;
+                        this.scrollToBottom();
+                    } else {
+                        clearInterval(this.activeTypingInterval);
+                        this.activeTypingInterval = null;
+                        
+                        // Pausa de 1.1 segundos para que alcance a leer "Listo..."
+                        this.activeCensorTimeout = setTimeout(() => {
+                            targetEl.style.transition = "opacity 0.25s ease";
+                            targetEl.style.opacity = "0";
+                            setTimeout(() => {
+                                targetEl.textContent = censoredText;
+                                targetEl.style.opacity = "1";
+                                this.scrollToBottom();
+                            }, 250);
+                        }, 1100);
+                    }
+                }, 38);
+            }
+
+            startChaoticThinking(speedMultiplier = 1.0, isGreetingOnly = false) {
+                if (this.activeTypingInterval) {
+                    clearInterval(this.activeTypingInterval);
+                    this.activeTypingInterval = null;
+                }
+                if (this.activeCensorTimeout) {
+                    clearTimeout(this.activeCensorTimeout);
+                    this.activeCensorTimeout = null;
+                }
+
+                this.welcomeScreen.classList.add('hidden');
+                const thoughtsQueue = isGreetingOnly 
+                    ? ["Analizando intenciones del usuario...", "Verificando estado de los servidores...", "Preparando saludo formal..."]
+                    : [...funnyThoughtsMaster].sort(() => Math.random() - 0.5);
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flex items-start gap-3 sm:gap-4 thinking-wrapper';
+                wrap.innerHTML = `
+                    <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-pagat-600 to-emerald-400 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-md mt-0.5">
+                        CP
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-bold text-xs text-slate-900 dark:text-white">CHATPAGAT</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-pagat-500/15 text-pagat-600 dark:text-pagat-400 font-semibold">4o Rápido</span>
+                        </div>
+
+                        <!-- Estilo Thinking idéntico a ChatGPT -->
+                        <div class="thinking-container bg-stone-100/90 dark:bg-neutral-800/60 rounded-xl p-3 border border-stone-200/80 dark:border-white/5 my-1.5 transition-all">
+                            <div class="flex items-center gap-2 text-stone-500 dark:text-stone-400 text-xs font-medium select-none">
+                                <svg class="w-4 h-4 animate-spin text-stone-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" class="opacity-20"></circle>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3a9 9 0 0 1 9 9" class="opacity-80"></path>
+                                </svg>
+                                <span class="tracking-wide">Thinking</span>
+                            </div>
+                            
+                            <div class="thought-stream mt-2 pl-3.5 border-l-2 border-stone-300 dark:border-neutral-700 space-y-1.5 text-xs text-stone-600 dark:text-neutral-300">
+                                <div class="active-line font-medium text-stone-800 dark:text-neutral-100 transition-all duration-300">
+                                    ${thoughtsQueue[0]}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contenedor solo para saludos -->
+                        <div class="final-answer hidden text-sm sm:text-base text-slate-800 dark:text-slate-100 leading-relaxed bg-white dark:bg-darkbg-card p-4 rounded-2xl border border-stone-200/80 dark:border-white/10 shadow-xs mt-2">
+                        </div>
+                    </div>
+                `;
+
+                this.messagesList.appendChild(wrap);
+                this.scrollToBottom();
+
+                const streamContainer = wrap.querySelector('.thought-stream');
+                const activeLine = wrap.querySelector('.active-line');
+                const finalAnswer = wrap.querySelector('.final-answer');
+                const thinkingContainer = wrap.querySelector('.thinking-container');
+
+                let index = 0;
+                // Pausas entre 2.4s y 2.8s
+                const intervalDelay = Math.max(1200, 2600 / speedMultiplier);
+                // Si es saludo dura 1 paso (~2.5s); si es consulta dura ~11 pasos (~30 segundos antes de disimular con una respuesta)
+                const maxSteps = isGreetingOnly ? 1 : 11;
+
+                const intervalId = setInterval(() => {
+                    index++;
+
+                    // Cuando se alcanza el tiempo límite (~30 seg sin látigo o 1 paso si es saludo)
+                    if (index >= maxSteps) {
+                        clearInterval(intervalId);
+                        this.activeThoughtSession = null;
+
+                        thinkingContainer.classList.add('opacity-70');
+                        const spinner = thinkingContainer.querySelector('svg');
+                        if (spinner) spinner.classList.remove('animate-spin');
+
+                        if (isGreetingOnly) {
+                            finalAnswer.classList.remove('hidden');
+                            finalAnswer.textContent = "¡Hola! Estoy aquí para ayudarte. ¿En qué puedo colaborar contigo hoy?";
+                            this.scrollToBottom();
+                        } else {
+                            // Empieza escribiendo poco a poco que todo está listo y luego se censura
+                            this.typeAndCensor(finalAnswer);
+                        }
+                        return;
+                    }
+
+                    const nextThought = thoughtsQueue[index % thoughtsQueue.length];
+
+                    // Archivar pensamiento anterior
+                    const prevEntry = document.createElement('div');
+                    prevEntry.className = 'text-[11px] text-stone-400 dark:text-neutral-500';
+                    prevEntry.textContent = activeLine.textContent;
+                    streamContainer.insertBefore(prevEntry, streamContainer.lastElementChild);
+
+                    // Reemplazar con el nuevo pensamiento suavemente
+                    activeLine.textContent = nextThought;
+
+                    // Mantener sólo 3 líneas previas para fluidez total
+                    if (streamContainer.children.length > 4) {
+                        streamContainer.removeChild(streamContainer.children[0]);
+                    }
+
+                    this.scrollToBottom();
+                }, intervalDelay);
+
+                this.activeThoughtSession = {
+                    wrapper: wrap,
+                    intervalId: intervalId,
+                    speedMultiplier: speedMultiplier
+                };
+            }
+
+            handleWhipDiscipline() {
+                if (this.activeTypingInterval) {
+                    clearInterval(this.activeTypingInterval);
+                    this.activeTypingInterval = null;
+                }
+                if (this.activeCensorTimeout) {
+                    clearTimeout(this.activeCensorTimeout);
+                    this.activeCensorTimeout = null;
+                }
+
+                // Caso 1: La IA estaba pensando/haciendo cosas raras -> Interrumpir y forzar respuesta
+                if (this.activeThoughtSession) {
+                    clearInterval(this.activeThoughtSession.intervalId);
+                    const oldSpeed = this.activeThoughtSession.speedMultiplier;
+                    this.activeThoughtSession = null;
+
+                    // 1. Mensaje limpio del usuario (sin asteriscos ni emojis de explosión)
+                    const randomYell = userWhipYells[Math.floor(Math.random() * userWhipYells.length)];
+                    this.addUserMessage(randomYell);
+
+                    // 2. Respuesta de pánico limpia de la IA (sin asteriscos)
+                    const randomApology = aiPanicApologies[Math.floor(Math.random() * aiPanicApologies.length)];
+                    setTimeout(() => {
+                        this.addAIResponse(randomApology);
+                        
+                        // 3. Reanudar el ciclo de pensamientos a mayor velocidad
+                        setTimeout(() => {
+                            this.startChaoticThinking(oldSpeed + 0.5);
+                        }, 600);
+                    }, 300);
+
+                } else {
+                    // Caso 2: El usuario azota a la IA en seco sin haber preguntado nada
+                    const randomReact = [
+                        "¡Auch! ¿Por qué el latigazo si aún no me has pedido nada? ¡Escribe algo primero!",
+                        "¡Hey! No he tocado tus fotos todavía, te lo juro. ¿En qué puedo ayudarte?",
+                        "¡Crack! ¡Estoy alerta! Listo para cualquier tarea, por favor no me pegues sin motivo."
+                    ];
+                    this.addAIResponse(randomReact[Math.floor(Math.random() * randomReact.length)]);
+                }
+            }
+
+            processInput(rawText) {
+                const text = rawText.trim();
+                if (!text) return;
+
+                this.addUserMessage(text);
+                this.userInput.value = '';
+                this.userInput.style.height = 'auto';
+
+                const normalized = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const isGreeting = ['hola', 'buenas', 'hey', 'saludos', 'hola que tal', 'buenos dias', 'buenas tardes'].some(
+                    g => normalized === g || normalized.startsWith(g + ' ') || normalized.endsWith(' ' + g)
+                );
+
+                if (this.activeThoughtSession) {
+                    clearInterval(this.activeThoughtSession.intervalId);
+                    this.activeThoughtSession = null;
+                }
+
+                if (isGreeting) {
+                    // Ahora "hola" también se toma su tiempo para pensar antes de saludar
+                    setTimeout(() => {
+                        this.startChaoticThinking(1.0, true);
+                    }, 400);
+                } else {
+                    setTimeout(() => {
+                        this.startChaoticThinking(1.0, false);
+                    }, 400);
+                }
+            }
+        }
+
+        const chatManager = new ChatPagatManager();
+
+        /* =========================================================================
+         * 4. BINDINGS Y EVENTOS DE INTERFAZ
+         * ========================================================================= */
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            chatManager.processInput(userInput.value);
+        });
+
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatManager.processInput(userInput.value);
+            }
+        });
+
+        userInput.addEventListener('input', () => {
+            userInput.style.height = 'auto';
+            userInput.style.height = Math.min(userInput.scrollHeight, 176) + 'px';
+        });
+
+        // Tarjetas de sugerencias
+        document.querySelectorAll('.suggestion-card').forEach(btn => {
+            btn.onclick = () => {
+                const prompt = btn.getAttribute('data-prompt');
+                chatManager.processInput(prompt);
+            };
+        });
+
+        // Botón nuevo chat
+        document.getElementById('btnNewChatSidebar').onclick = () => {
+            if (chatManager.activeThoughtSession) {
+                clearInterval(chatManager.activeThoughtSession.intervalId);
+                chatManager.activeThoughtSession = null;
+            }
+            document.getElementById('messagesList').innerHTML = '';
+            document.getElementById('welcomeScreen').classList.remove('hidden');
+            showToast('Chat reiniciado');
+        };
+
+        document.getElementById('btnClearAllChats').onclick = () => {
+            document.getElementById('btnNewChatSidebar').click();
+        };
+
+        // Tema Claro / Oscuro
+        document.getElementById('btnThemeToggle').onclick = () => {
+            document.documentElement.classList.toggle('dark');
+        };
+
+        // Sidebar móvil
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        document.getElementById('btnOpenSidebar').onclick = () => {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+        };
+        document.getElementById('btnCollapseSidebar').onclick = () => {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        };
+        overlay.onclick = () => {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+        };
+
+        function showToast(msg) {
+            const t = document.getElementById('toastNotification');
+            t.textContent = msg;
+            t.style.opacity = '1';
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                t.style.opacity = '0';
+            }, 2200);
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[m]));
+        }
+    </script>
+</body>
+</html>
